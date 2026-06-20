@@ -95,6 +95,7 @@ export interface Meteor {
   vx: number;
   vy: number;
   length: number;
+  baseBrightness: number;
   brightness: number;
   color: string;
   life: number;
@@ -118,6 +119,7 @@ export interface StardustParticle {
   vx: number;
   vy: number;
   size: number;
+  baseBrightness: number;
   brightness: number;
   life: number;
   maxLife: number;

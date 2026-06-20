@@ -19,7 +19,8 @@ import {
   clamp,
   createCelestialState,
   generateNebulas,
-  updateCelestialState
+  updateCelestialState,
+  cleanupOutOfBoundsCelestial
 } from './utils';
 
 const SNAP_DISTANCE = 35;
@@ -88,6 +89,7 @@ export class Game {
     this.renderer.resize(w, h);
     this.backgroundStars = generateBackgroundStars(400, w, h);
     this.celestialState.nebulas = generateNebulas(4, w, h);
+    cleanupOutOfBoundsCelestial(this.celestialState, w, h);
   }
 
   private bindEvents(): void {
