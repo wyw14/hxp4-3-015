@@ -1,4 +1,11 @@
-import type { BackgroundStar, ScreenPoint, CurvePoint } from './types';
+import type {
+  BackgroundStar,
+  ScreenPoint,
+  CurvePoint,
+  Nebula,
+  StardustParticle,
+  CelestialState
+} from './types';
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -155,4 +162,178 @@ export function colorToRgb(color: string): { r: number; g: number; b: number } {
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+export function createCelestialState(): CelestialState {
+  return {
+    meteors: [],
+    nebulas: [],
+    stardustBursts: [],
+    nextMeteorId: 0,
+    nextStardustId: 0,
+    meteorSpawnTimer: 0,
+    stardustSpawnTimer: 0
+  };
+}
+
+export function generateNebulas(count: number, width: number, height: number): Nebula[] {
+  const nebulas: Nebula[] = [];
+  const nebulaColors = [
+    { r: 120, g: 80, b: 200 },
+    { r: 80, g: 120, b: 220 },
+    { r: 200, g: 100, b: 150 },
+    { r: 100, g: 180, b: 200 },
+    { r: 180, g: 120, b: 220 }
+  ];
+
+  for (let i = 0; i < count; i++) {
+    nebulas.push({
+      id: i,
+      x: Math.random() * width,
+      y: Math.random() * height,
+      baseRadius: 150 + Math.random() * 300,
+      phaseOffset: Math.random() * Math.PI * 2,
+      color: nebulaColors[Math.floor(Math.random() * nebulaColors.length)],
+      baseIntensity: 0.03 + Math.random() * 0.05,
+      warpSpeed: 0.1 + Math.random() * 0.3
+    });
+  }
+  return nebulas;
+}
+
+export function spawnMeteor(
+  state: CelestialState,
+  width: number,
+  height: number
+): void {
+  const meteorColors = ['#ffffff', '#e8f4ff', '#fff4e6', '#f8f7ff'];
+  const fromLeft = Math.random() > 0.5;
+  const fromTop = Math.random() > 0.5;
+
+  let startX: number, startY: number;
+  if (fromLeft) {
+    startX = -50;
+    startY = Math.random() * height * 0.6;
+  } else {
+    startX = width + 50;
+    startY = Math.random() * height * 0.6;
+  }
+  if (fromTop) {
+    startY = -50;
+    startX = Math.random() * width;
+  }
+
+  const angle = Math.atan2(height / 2 - startY, width / 2 - startX) + (Math.random() - 0.5) * 0.5;
+  const speed = 400 + Math.random() * 600;
+
+  state.meteors.push({
+    id: state.nextMeteorId++,
+    x: startX,
+    y: startY,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    length: 60 + Math.random() * 120,
+    brightness: 0.6 + Math.random() * 0.4,
+    color: meteorColors[Math.floor(Math.random() * meteorColors.length)],
+    life: 0,
+    maxLife: 2 + Math.random() * 2
+  });
+}
+
+export function spawnStardustBurst(
+  state: CelestialState,
+  width: number,
+  height: number
+): void {
+  const burstX = 100 + Math.random() * (width - 200);
+  const burstY = 100 + Math.random() * (height - 200);
+  const particleCount = 15 + Math.floor(Math.random() * 20);
+  const particles: StardustParticle[] = [];
+  const dustColors = ['#ffffff', '#ffe8c8', '#c8e8ff', '#fff0f5', '#e8fff0'];
+
+  for (let i = 0; i < particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 10 + Math.random() * 40;
+    particles.push({
+      x: burstX,
+      y: burstY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 0.5 + Math.random() * 2,
+      brightness: 0.3 + Math.random() * 0.7,
+      life: 0,
+      maxLife: 1.5 + Math.random() * 2,
+      color: dustColors[Math.floor(Math.random() * dustColors.length)]
+    });
+  }
+
+  state.stardustBursts.push({
+    id: state.nextStardustId++,
+    particles,
+    x: burstX,
+    y: burstY
+  });
+}
+
+export function updateCelestialState(
+  state: CelestialState,
+  delta: number,
+  width: number,
+  height: number
+): void {
+  state.meteorSpawnTimer -= delta;
+  state.stardustSpawnTimer -= delta;
+
+  if (state.meteorSpawnTimer <= 0) {
+    if (Math.random() < 0.4) {
+      spawnMeteor(state, width, height);
+    }
+    state.meteorSpawnTimer = 2 + Math.random() * 6;
+  }
+
+  if (state.stardustSpawnTimer <= 0) {
+    if (Math.random() < 0.5) {
+      spawnStardustBurst(state, width, height);
+    }
+    state.stardustSpawnTimer = 3 + Math.random() * 7;
+  }
+
+  state.meteors = state.meteors.filter(meteor => {
+    meteor.x += meteor.vx * delta;
+    meteor.y += meteor.vy * delta;
+    meteor.life += delta;
+
+    const fadeStart = meteor.maxLife * 0.7;
+    if (meteor.life > fadeStart) {
+      meteor.brightness *= (1 - (meteor.life - fadeStart) / (meteor.maxLife - fadeStart));
+    }
+
+    const outOfBounds =
+      meteor.x < -150 || meteor.x > width + 150 ||
+      meteor.y < -150 || meteor.y > height + 150;
+    const expired = meteor.life >= meteor.maxLife;
+
+    return !outOfBounds && !expired && meteor.brightness > 0.01;
+  });
+
+  state.stardustBursts = state.stardustBursts.filter(burst => {
+    let hasAlive = false;
+    for (const p of burst.particles) {
+      p.x += p.vx * delta;
+      p.y += p.vy * delta;
+      p.vx *= 0.98;
+      p.vy *= 0.98;
+      p.life += delta;
+
+      const fadeStart = p.maxLife * 0.5;
+      if (p.life > fadeStart) {
+        p.brightness *= (1 - (p.life - fadeStart) / (p.maxLife - fadeStart));
+      }
+
+      if (p.life < p.maxLife && p.brightness > 0.01) {
+        hasAlive = true;
+      }
+    }
+    return hasAlive;
+  });
 }

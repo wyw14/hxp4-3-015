@@ -87,3 +87,56 @@ export interface VerifyResult {
   frequencies?: Record<string, number>;
   ratio?: [number, number] | null;
 }
+
+export interface Meteor {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  length: number;
+  brightness: number;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+export interface Nebula {
+  id: number;
+  x: number;
+  y: number;
+  baseRadius: number;
+  phaseOffset: number;
+  color: { r: number; g: number; b: number };
+  baseIntensity: number;
+  warpSpeed: number;
+}
+
+export interface StardustParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  brightness: number;
+  life: number;
+  maxLife: number;
+  color: string;
+}
+
+export interface StardustBurst {
+  id: number;
+  particles: StardustParticle[];
+  x: number;
+  y: number;
+}
+
+export interface CelestialState {
+  meteors: Meteor[];
+  nebulas: Nebula[];
+  stardustBursts: StardustBurst[];
+  nextMeteorId: number;
+  nextStardustId: number;
+  meteorSpawnTimer: number;
+  stardustSpawnTimer: number;
+}

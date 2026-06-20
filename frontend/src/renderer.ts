@@ -3,9 +3,12 @@ import type {
   AnchorPoint,
   Connection,
   ScreenPoint,
-  CurvePoint
+  CurvePoint,
+  Nebula,
+  Meteor,
+  StardustBurst
 } from './types';
-import { rotatePoint } from './utils';
+import { rotatePoint, colorToRgb } from './utils';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -125,6 +128,133 @@ export class Renderer {
 
       this.ctx.fillStyle = glow;
       this.ctx.fillRect(0, 0, this.width, this.height);
+    }
+  }
+
+  drawNebulas(nebulas: Nebula[], time: number): void {
+    for (const nebula of nebulas) {
+      const phase = time * nebula.warpSpeed + nebula.phaseOffset;
+      const wobbleX = Math.sin(phase) * nebula.baseRadius * 0.15;
+      const wobbleY = Math.cos(phase * 0.8) * nebula.baseRadius * 0.15;
+      const currentRadius = nebula.baseRadius * (1 + Math.sin(phase * 1.3) * 0.15);
+      const intensity = nebula.baseIntensity * (0.7 + Math.sin(phase * 0.6) * 0.3);
+
+      const cx = nebula.x + wobbleX;
+      const cy = nebula.y + wobbleY;
+
+      const { r, g, b } = nebula.color;
+
+      const glow = this.ctx.createRadialGradient(
+        cx, cy, 0,
+        cx, cy, currentRadius
+      );
+      glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${intensity})`);
+      glow.addColorStop(0.4, `rgba(${Math.floor(r * 0.7)}, ${Math.floor(g * 0.8)}, ${Math.floor(b * 0.9)}, ${intensity * 0.6})`);
+      glow.addColorStop(0.7, `rgba(${Math.floor(r * 0.4)}, ${Math.floor(g * 0.5)}, ${Math.floor(b * 0.7)}, ${intensity * 0.3})`);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      this.ctx.fillStyle = glow;
+      this.ctx.fillRect(0, 0, this.width, this.height);
+
+      const innerRadius = currentRadius * 0.5;
+      const swirlPhase = phase * 2;
+      for (let i = 0; i < 3; i++) {
+        const angle = swirlPhase + (i * Math.PI * 2) / 3;
+        const swirlX = cx + Math.cos(angle) * innerRadius * 0.4;
+        const swirlY = cy + Math.sin(angle) * innerRadius * 0.4;
+        const swirlR = currentRadius * (0.25 + Math.sin(swirlPhase + i) * 0.05);
+
+        const swirl = this.ctx.createRadialGradient(
+          swirlX, swirlY, 0,
+          swirlX, swirlY, swirlR
+        );
+        swirl.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${intensity * 0.8})`);
+        swirl.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+        this.ctx.fillStyle = swirl;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+      }
+    }
+  }
+
+  drawMeteors(meteors: Meteor[]): void {
+    for (const meteor of meteors) {
+      const rgb = colorToRgb(meteor.color);
+      const alpha = meteor.brightness;
+
+      const dx = -meteor.vx;
+      const dy = -meteor.vy;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len === 0) continue;
+
+      const nx = dx / len;
+      const ny = dy / len;
+
+      const tailX = meteor.x + nx * meteor.length;
+      const tailY = meteor.y + ny * meteor.length;
+
+      const tailGradient = this.ctx.createLinearGradient(
+        tailX, tailY,
+        meteor.x, meteor.y
+      );
+      tailGradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+      tailGradient.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha * 0.2})`);
+      tailGradient.addColorStop(0.7, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha * 0.6})`);
+      tailGradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`);
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(tailX, tailY);
+      this.ctx.lineTo(meteor.x, meteor.y);
+      this.ctx.strokeStyle = tailGradient;
+      this.ctx.lineWidth = 2;
+      this.ctx.lineCap = 'round';
+      this.ctx.stroke();
+
+      const headGlowR = 6;
+      const headGlow = this.ctx.createRadialGradient(
+        meteor.x, meteor.y, 0,
+        meteor.x, meteor.y, headGlowR
+      );
+      headGlow.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+      headGlow.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha * 0.7})`);
+      headGlow.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+
+      this.ctx.beginPath();
+      this.ctx.arc(meteor.x, meteor.y, headGlowR, 0, Math.PI * 2);
+      this.ctx.fillStyle = headGlow;
+      this.ctx.fill();
+
+      this.ctx.beginPath();
+      this.ctx.arc(meteor.x, meteor.y, 1.5, 0, Math.PI * 2);
+      this.ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      this.ctx.fill();
+    }
+  }
+
+  drawStardustBursts(bursts: StardustBurst[]): void {
+    for (const burst of bursts) {
+      for (const p of burst.particles) {
+        if (p.brightness <= 0.01 || p.life >= p.maxLife) continue;
+
+        const rgb = colorToRgb(p.color);
+        const alpha = p.brightness;
+
+        if (p.size > 1) {
+          const glowR = p.size * 4;
+          const glow = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+          glow.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha * 0.5})`);
+          glow.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+          this.ctx.beginPath();
+          this.ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
+          this.ctx.fillStyle = glow;
+          this.ctx.fill();
+        }
+
+        this.ctx.beginPath();
+        this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        this.ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+        this.ctx.fill();
+      }
     }
   }
 

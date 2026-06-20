@@ -6,7 +6,8 @@ import type {
   ScreenPoint,
   CurvePoint,
   BackgroundStar,
-  LevelData
+  LevelData,
+  CelestialState
 } from './types';
 import { Renderer } from './renderer';
 import { getLevel, verifyEdge } from './api';
@@ -15,7 +16,10 @@ import {
   smoothPath,
   simplifyPath,
   distance,
-  clamp
+  clamp,
+  createCelestialState,
+  generateNebulas,
+  updateCelestialState
 } from './utils';
 
 const SNAP_DISTANCE = 35;
@@ -26,6 +30,7 @@ export class Game {
   private renderer: Renderer;
   private state: GameState;
   private backgroundStars: BackgroundStar[] = [];
+  private celestialState: CelestialState;
   private lastTime: number = 0;
   private animationFrameId: number = 0;
   private listeners: Array<() => void> = [];
@@ -38,6 +43,7 @@ export class Game {
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.renderer = new Renderer(canvas);
+    this.celestialState = createCelestialState();
 
     this.state = {
       currentLevel: 1,
@@ -81,6 +87,7 @@ export class Game {
     const h = window.innerHeight;
     this.renderer.resize(w, h);
     this.backgroundStars = generateBackgroundStars(400, w, h);
+    this.celestialState.nebulas = generateNebulas(4, w, h);
   }
 
   private bindEvents(): void {
@@ -418,12 +425,21 @@ export class Game {
     this.state.connections.forEach(c => {
       c.opacity = Math.min(c.opacity, 1);
     });
+
+    updateCelestialState(
+      this.celestialState,
+      delta,
+      window.innerWidth,
+      window.innerHeight
+    );
   }
 
   private render(): void {
     this.renderer.beginFrame();
 
     if (this.state.levelData) {
+      this.renderer.drawNebulas(this.celestialState.nebulas, this.state.time);
+
       this.renderer.drawBackgroundStars(
         this.backgroundStars,
         this.state.rotationOffset,
@@ -431,6 +447,9 @@ export class Game {
       );
 
       this.renderer.drawLightPollution(this.state.time, this.state.levelData.lightPollution);
+
+      this.renderer.drawMeteors(this.celestialState.meteors);
+      this.renderer.drawStardustBursts(this.celestialState.stardustBursts);
 
       this.renderer.drawCreatureOutline(
         this.state.levelData.anchorPoints,
